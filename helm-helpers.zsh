@@ -4,12 +4,30 @@ MY_HELM_CONFIG_STATE="thawed"
 MY_HELM_FROZEN_CONTEXT=""
 
 function helm-watcher {
+  local pid_file="/run/user/${UID}/helm-watch-for-kube-context-change.pid"
   case "$1" in
+    status )
+      if [ -e "${pid_file}" ]; then
+        local pid="$(cat ${pid_file})"
+        echo $pid
+        if ps -p $pid > /dev/null; then
+          echo "running"
+        else
+          echo "stopped"
+          return 1
+        fi
+      else
+        echo "stopped"
+        return 1
+      fi
+      ;;
     start )
-      start-stop-daemon -S -p /run/user/${UID}/helm-watch-for-kube-context-change.pid -b -m helm-watch-for-kube-context-change
+      if ! helm-watcher status > /dev/null; then
+        start-stop-daemon -S -p "${pid_file}" -b -m helm-watch-for-kube-context-change
+      fi
       ;;
     stop )
-      start-stop-daemon -K -p /run/user/${UID}/helm-watch-for-kube-context-change.pid helm-watch-for-kube-context-change
+      start-stop-daemon -K -p "${pid_file}" helm-watch-for-kube-context-change
       ;;
   esac
 }
