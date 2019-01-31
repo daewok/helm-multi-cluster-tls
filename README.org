@@ -1,0 +1,59 @@
+#+TITLE: Helm Multi-cluster TLS Helpers
+#+AUTHOR: Eric Timmons
+
+This package is meant to help people that are using Helm with TLS enabled in
+multiple clusters and/or with multiple Tiller instances.
+
+The shell functions are currently only tested in ZSH, but should work in Bash
+with minimal modifications.
+
+To install, ensure that =helm-watch-for-kube-context-change= and
+=update-helm-tls= are on your PATH. Then source =helm-helpers.zsh= into your
+shell. Additionally, make sure =entr= is installed.
+
+Ensure that =helm-watch-for-kube-context-change= is running as daemon. You can
+do this using features provided by your OS (such as systemd) or by running
+=helm-watcher start= in a shell (this method requires =start-stop-daemon= is
+installed).
+
+To use this, arrange your Helm home folder (typically =~/.helm=) like so:
+
+#+begin_example
+  $HELM_HOME/tls/
+  ├── cluster-1-context-name
+  │   ├── tiller-namespace-1
+  │   │   ├── ca.pem
+  │   │   ├── cert.pem
+  │   │   └── key.pem
+  │   └── tiller-namespace-2
+  │       ├── ca.pem
+  │       ├── cert.pem
+  │       └── key.pem
+  └── cluster-1-context-name
+      ├── tiller-namespace-1
+      │   ├── ca.pem
+      │   ├── cert.pem
+      │   └── key.pem
+      └── tiller-namespace-2
+          ├── ca.pem
+          ├── cert.pem
+          └── key.pem
+
+#+end_example
+
+Then, any time you change kubectl contexts, the =update-helm-tls= script is
+called to set symlinks at =$HELM_HOME/{ca,cert,key}.pem= to the correct files in
+the =tls= folder.
+
+In your shell, =helm= is aliased to a function that enables TLS if the symlinks
+are present. Additionally, the following functions are available:
+
++ =helm-config= :: call with =freeze= to set take a snapshot of the current
+                   state of TLS in your helm directory by setting
+                   =TILLER_NAMESPACE=, =HELM_TLS_ENABLE=, =HELM_TLS_CA_CERT=,
+                   =HELM_TLS_CERT=, and =HELM_TLS_KEY= appropriately. Call with
+                   =thaw= to unset these environment variables.
++ =helm-watcher= :: =start= or =stop= the =helm-watch-for-kube-context-change=
+                    daemon using =start-stop-daemon=.
++ =helm-ns= :: call with one argument naming the =TILLER_NAMESPACE= you would
+               like to use.

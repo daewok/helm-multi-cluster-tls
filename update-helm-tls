@@ -1,0 +1,75 @@
+#! /bin/bash
+# -*- sh-basic-offset: 2 -*-
+
+current_context() {
+  kubectl config view -o=jsonpath='{.current-context}'
+}
+
+# Compute the current kubectl context and the helm home directory.
+ctx=$(current_context)
+helm_home=$(helm home)
+
+# Helper to determine if a file either does not exist or is a symlink.
+file-is-link-or-nonexistent() {
+  [ ! -e "$1" ] || [ -L "$1" ]
+}
+
+# Helper that checks if all TLS files either do not exist or are symlinks.
+tls-files-are-links() {
+  file-is-link-or-nonexistent "${helm_home}/ca.pem" \
+    && file-is-link-or-nonexistent "${helm_home}/key.pem" \
+    && file-is-link-or-nonexistent "${helm_home}/cert.pem"
+}
+
+if ! tls-files-are-links; then
+  >&2 echo "Cowardly aborting (one of your tls files is not a link!)"
+  exit 1
+fi
+
+# Unlink TLS files from helm's home. Does not check to make sure they are links
+# beforehand
+unlink-tls-files() {
+  rm -f "${helm_home}/ca.pem" "${helm_home}/key.pem" "${helm_home}/cert.pem"
+}
+
+# Returns the last tiller namespace used by this context.
+last-tiller-ns() {
+  current_ns_file="${helm_home}/tls/${ctx}/current"
+  if [ -f "${current_ns_file}" ]; then
+    cat "${current_ns_file}"
+  fi
+}
+
+write-namespace() {
+  echo "${tiller_ns}" > "${helm_home}/tls/${ctx}/current"
+  echo "${tiller_ns}" > "${helm_home}/current_tiller_namespace"
+}
+
+# Compute the tiller namespace we should use. It's either the first argument to
+# this script *or* the last namespace we used in this cluster.
+
+if [ -z "$1" ]; then
+  tiller_ns=$(last-tiller-ns "${helm_home}" "${ctx}")
+else
+  tiller_ns="$1"
+fi
+
+if [ -z "$tiller_ns" ]; then
+  # Still can't figure out the tiller namespace. Set it to kube-system and be
+  # done with it.
+  tiller_ns="kube-system"
+fi
+
+# Now do our work.
+if [ -d "${helm_home}/tls/${ctx}/${tiller_ns}" ]; then
+  # We have a namespace and context, set the links correctly.
+  ln -Tsf "tls/${ctx}/${tiller_ns}/ca.pem" "${helm_home}/ca.pem"
+  ln -Tsf "tls/${ctx}/${tiller_ns}/key.pem" "${helm_home}/key.pem"
+  ln -Tsf "tls/${ctx}/${tiller_ns}/cert.pem" "${helm_home}/cert.pem"
+  write-namespace
+else
+  # We have namespace and context, but no certs for this namespace, nuke the
+  # links
+  unlink-tls-files
+  write-namespace
+fi

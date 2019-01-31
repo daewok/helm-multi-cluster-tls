@@ -1,0 +1,8 @@
+#! /bin/bash
+# -*- sh-basic-offset: 2 -*-
+
+if ! pgrep -x -f "entr update-helm-tls" > /dev/null; then
+  exec entr update-helm-tls <<EOF
+${HOME}/.kube/config
+EOF
+fi
