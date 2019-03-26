@@ -114,7 +114,7 @@ function my-helm-run {
   fi
 
   if [ -e "${helm_home}/key.pem" ] && [ -z "$HELM_TLS_ENABLE" ]; then
-    HELM_TLS_ENABLE="true" command helm "$@"
+    TILLER_NAMESPACE="$(helm-ns)" HELM_TLS_ENABLE="true" command helm "$@"
   else
     command helm "$@"
   fi
